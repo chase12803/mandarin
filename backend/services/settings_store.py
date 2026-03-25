@@ -64,6 +64,17 @@ def mask_key(key):
     return "••••••••" + key[-4:]
 
 
+def get_ai_memory_enabled():
+    """When True, chat uses RAG/fallback memory in the system prompt and runs post-reply memory extraction. Default off."""
+    data = _load_raw()
+    val = data.get("ai_memory_enabled")
+    if val is True:
+        return True
+    if isinstance(val, str) and val.strip().lower() in ("1", "true", "yes"):
+        return True
+    return False
+
+
 def get_settings_for_api():
     """Return settings safe for API response: masked API key status. default_model comes from models.yaml via API layer."""
     effective = {}
@@ -76,6 +87,7 @@ def get_settings_for_api():
     return {
         "api_keys": effective,
         "default_web_search_mode": get_default_web_search_mode(),
+        "ai_memory_enabled": get_ai_memory_enabled(),
     }
 
 
@@ -108,6 +120,9 @@ def update_settings(updates):
             updates.get("default_web_search_mode"),
             default=WEB_SEARCH_MODE_OFF,
         )
+    if "ai_memory_enabled" in updates:
+        v = updates["ai_memory_enabled"]
+        data["ai_memory_enabled"] = bool(v)
     _save_raw(data)
 
 

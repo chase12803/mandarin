@@ -2,6 +2,7 @@
 from backend.models import db, Memory
 from backend.services.models_config import get_model_info, get_memory_extractor_model_id
 from backend.services.prompt_loader import load_prompt
+from backend.services.settings_store import get_ai_memory_enabled
 from backend.providers import base as providers_base
 
 _MIN_FACT_LENGTH = 10
@@ -146,6 +147,8 @@ def _check_similarity_in_long_text(candidate_text, target_text, threshold=0.9):
 
 def extract_and_store(user_content, assistant_content, app, context_ids=None):
     """Run in background: ask small model if there is a fact worth storing; if yes and not duplicate, insert Memory."""
+    if not get_ai_memory_enabled():
+        return
     model_id = get_memory_extractor_model_id() or _pick_small_model()
     if not model_id:
         return

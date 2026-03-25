@@ -348,11 +348,18 @@ def _build_rules_section(active_rules: Optional[List[Rule]]) -> str:
     return "\n\n".join(lines).strip()
 
 
-def build_system_message(context_ids=None, rag_query=None, fallback_memories=None, rules_for_request: Optional[List[Rule]] = None):
+def build_system_message(
+    context_ids=None,
+    rag_query=None,
+    fallback_memories=None,
+    rules_for_request: Optional[List[Rule]] = None,
+    memory_enabled: bool = True,
+):
     """context_ids: list of context file ids.
     rag_query: optional user message to retrieve relevant memory.
     fallback_memories: optional list of memory content strings; used when RAG returns no hits or fails.
-    rules_for_request: optional list of Rule objects to include in ## Rules."""
+    rules_for_request: optional list of Rule objects to include in ## Rules.
+    memory_enabled: when False, no ## Relevant memory section (RAG and fallback skipped)."""
     parts: List[str] = []
     base = _read_base_system_prompt()
     if base:
@@ -374,7 +381,7 @@ def build_system_message(context_ids=None, rag_query=None, fallback_memories=Non
             # Demote headings inside context bodies so they nest cleanly.
             body = _demote_markdown_headings(body)
             parts.append(f"## Context: {name}\n{body}")
-    if rag_query:
+    if memory_enabled and rag_query:
         memory_text = None
         # When there are few memories, use all of them from DB so retrieval is reliable.
         if fallback_memories and len(fallback_memories) <= 5:

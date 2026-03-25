@@ -33,6 +33,7 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(null);
   const [defaultModel, setDefaultModel] = useState("");
   const [defaultWebSearchMode, setDefaultWebSearchMode] = useState("off");
+  const [aiMemoryEnabled, setAiMemoryEnabled] = useState(false);
   const [apiKeyDrafts, setApiKeyDrafts] = useState(() => ({ ...BLANK_API_KEY_STATE }));
   const [showKeyInput, setShowKeyInput] = useState(() => ({ ...HIDDEN_KEY_INPUT_STATE }));
   const hasAnyApiKeySet = PROVIDERS.some((provider) => settings?.api_keys?.[provider]?.set);
@@ -45,6 +46,7 @@ export default function SettingsPage() {
         setModels(available);
         setDefaultModel(settingsData.default_model || "");
         setDefaultWebSearchMode((settingsData.default_web_search_mode || "off").toLowerCase());
+        setAiMemoryEnabled(settingsData.ai_memory_enabled === true);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -61,7 +63,24 @@ export default function SettingsPage() {
       .then((data) => {
         setSettings(data);
         setDefaultWebSearchMode((data.default_web_search_mode || "off").toLowerCase());
-        setSuccess("Default model and web search mode saved.");
+        setAiMemoryEnabled(data.ai_memory_enabled === true);
+        setSuccess("Default model and web search saved.");
+        setTimeout(() => setSuccess(null), 3000);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setSaving(false));
+  };
+
+  const handleToggleAiMemory = () => {
+    const next = !aiMemoryEnabled;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    putSettings({ ai_memory_enabled: next })
+      .then((data) => {
+        setSettings(data);
+        setAiMemoryEnabled(data.ai_memory_enabled === true);
+        setSuccess(`AI-managed memory ${data.ai_memory_enabled ? "enabled" : "disabled"}.`);
         setTimeout(() => setSuccess(null), 3000);
       })
       .catch((e) => setError(e.message))
@@ -205,6 +224,34 @@ export default function SettingsPage() {
             >
               {saving ? "Saving…" : "Save defaults"}
             </button>
+          </div>
+        </div>
+
+        <div className="settings-card">
+          <div className="settings-card-header">
+            <h3>AI-managed memory</h3>
+            <span className="settings-hint">
+              Recall stored memories in the system prompt and save new facts after each reply. Off by default.
+            </span>
+          </div>
+          <div className="settings-card-body settings-card-body-switch">
+            <div className="settings-switch-row">
+              <span id="ai-memory-switch-label" className="settings-switch-text">
+                Enable in chat
+              </span>
+              <button
+                type="button"
+                id="ai-memory-switch"
+                role="switch"
+                aria-checked={aiMemoryEnabled}
+                aria-labelledby="ai-memory-switch-label"
+                disabled={saving}
+                className={`settings-switch ${aiMemoryEnabled ? "settings-switch-on" : ""}`}
+                onClick={handleToggleAiMemory}
+              >
+                <span className="settings-switch-thumb" aria-hidden />
+              </button>
+            </div>
           </div>
         </div>
 

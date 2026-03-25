@@ -35,6 +35,7 @@ from backend.services.models_config import (
 from backend.services.settings_store import (
     get_settings_for_api,
     get_default_web_search_mode,
+    get_ai_memory_enabled,
     update_settings,
     invalidate_provider_clients,
 )
@@ -86,6 +87,8 @@ def put_settings():
         if mode is None:
             return jsonify({"error": "default_web_search_mode must be one of: off, native, tavily"}), 400
         updates["default_web_search_mode"] = mode
+    if "ai_memory_enabled" in data:
+        updates["ai_memory_enabled"] = bool(data.get("ai_memory_enabled"))
     update_settings(updates)
     if "api_keys" in updates:
         invalidate_provider_clients()
@@ -591,7 +594,12 @@ def regenerate_message(chat_id):
         if cmd_body
         else content
     )
-    fallback_memories = [m.content for m in Memory.query.order_by(Memory.created_at.desc()).limit(10).all()]
+    mem_enabled = get_ai_memory_enabled()
+    fallback_memories = (
+        [m.content for m in Memory.query.order_by(Memory.created_at.desc()).limit(10).all()]
+        if mem_enabled
+        else []
+    )
     # Resolve active rules for this request (original user content, plus any rules referenced in the command body).
     commands_used = [cmd_name] if cmd_name else []
     rules_for_request = resolve_active_rules(content, commands_used)
@@ -607,6 +615,7 @@ def regenerate_message(chat_id):
         rag_query=content,
         fallback_memories=fallback_memories,
         rules_for_request=rules_for_request,
+        memory_enabled=mem_enabled,
     )
     messages_for_llm = []
     if system:
@@ -755,13 +764,15 @@ def regenerate_message(chat_id):
             assistant_msg = Message(chat_id=chat_id, role="assistant", content=full_content, meta=meta)
             db.session.add(assistant_msg)
             db.session.commit()
-            from backend.services.memory_store import extract_and_store
-            threading.Thread(
-                target=extract_and_store,
-                args=(content, full_content, current_app._get_current_object()),
-                kwargs={"context_ids": chat.context_ids or []},
-                daemon=True,
-            ).start()
+            if get_ai_memory_enabled():
+                from backend.services.memory_store import extract_and_store
+
+                threading.Thread(
+                    target=extract_and_store,
+                    args=(content, full_content, current_app._get_current_object()),
+                    kwargs={"context_ids": chat.context_ids or []},
+                    daemon=True,
+                ).start()
             yield f"data: {json.dumps({'t': 'done', 'id': assistant_msg.id, 'title': chat.title})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'t': 'error', 'error': str(e)})}\n\n"
@@ -873,7 +884,12 @@ def add_message(chat_id):
     else:
         current_user_content = user_content_for_llm
 
-    fallback_memories = [m.content for m in Memory.query.order_by(Memory.created_at.desc()).limit(10).all()]
+    mem_enabled = get_ai_memory_enabled()
+    fallback_memories = (
+        [m.content for m in Memory.query.order_by(Memory.created_at.desc()).limit(10).all()]
+        if mem_enabled
+        else []
+    )
     # Resolve rules based on original user content and any command body.
     commands_used = [cmd_name] if cmd_name else []
     rules_for_request = resolve_active_rules(content, commands_used)
@@ -890,6 +906,7 @@ def add_message(chat_id):
         rag_query=content,
         fallback_memories=fallback_memories,
         rules_for_request=rules_for_request,
+        memory_enabled=mem_enabled,
     )
     messages_for_llm = []
     if system:
@@ -1057,13 +1074,15 @@ def add_message(chat_id):
             else:
                 title_to_send = chat.title
             db.session.commit()
-            from backend.services.memory_store import extract_and_store
-            threading.Thread(
-                target=extract_and_store,
-                args=(content, full_content, current_app._get_current_object()),
-                kwargs={"context_ids": chat.context_ids or []},
-                daemon=True,
-            ).start()
+            if get_ai_memory_enabled():
+                from backend.services.memory_store import extract_and_store
+
+                threading.Thread(
+                    target=extract_and_store,
+                    args=(content, full_content, current_app._get_current_object()),
+                    kwargs={"context_ids": chat.context_ids or []},
+                    daemon=True,
+                ).start()
             yield f"data: {json.dumps({'t': 'done', 'id': assistant_msg.id, 'title': title_to_send})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'t': 'error', 'error': str(e)})}\n\n"
