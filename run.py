@@ -45,9 +45,11 @@ def venv_python_path() -> Path:
     return VENV_DIR / "bin" / "python"
 
 
-def ensure_prerequisites() -> None:
-    if shutil.which("npm") is None:
+def ensure_prerequisites() -> str:
+    npm_cmd = shutil.which("npm") or shutil.which("npm.cmd")
+    if npm_cmd is None:
         raise RuntimeError("npm is not available in PATH. Install Node.js and npm first.")
+    return npm_cmd
 
 
 def ensure_virtualenv() -> Path:
@@ -65,14 +67,14 @@ def ensure_virtualenv() -> Path:
 
 def main() -> int:
     try:
-        ensure_prerequisites()
+        npm_cmd = ensure_prerequisites()
         validate_project_layout()
 
         log_step("Installing frontend dependencies")
-        run_command(["npm", "install"], cwd=FRONTEND_DIR)
+        run_command([npm_cmd, "install"], cwd=FRONTEND_DIR)
 
         log_step("Building frontend")
-        run_command(["npm", "run", "build"], cwd=FRONTEND_DIR)
+        run_command([npm_cmd, "run", "build"], cwd=FRONTEND_DIR)
 
         venv_python = ensure_virtualenv()
 
